@@ -92,25 +92,9 @@
 
     var seconds = Math.floor((time / 1000) % 60);
     var milliSeconds = time % 100;
-    var rotation = (360 / 60) * seconds;
+    var rotation = ((360 / 60) * seconds) % 360;
     var secondHand = clockEl.querySelector('.second-hand-inner');
-    if (seconds === 0) {
-    secondHand.style[TRANSFORM_NAME] = 'rotate(360deg)';
-    
-    setTimeout(function() {
-        secondHand.style.transition = 'none';
-        secondHand.classList.add('no-transition');
-       //secondHand.offsetHeight;
-        secondHand.style[TRANSFORM_NAME] = 'rotate(0deg)';
-        
-        setTimeout(function() {
-            secondHand.style.transition = 'transform 0.15s cubic-bezier(0.42, 0, 0.58, 1)';
-            secondHand.classList.remove('no-transition');
-        }, 10);
-    }, 150);
-} else {
     secondHand.style[TRANSFORM_NAME] = 'rotate(' + rotation + 'deg)';
-}
 
     var minutes = ((time / 1000 / 60) % 60)
     var rotation = (360 / 60) * minutes
