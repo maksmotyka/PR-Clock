@@ -140,57 +140,65 @@
     </div>
 
     <script>
-        var TRANSFORM_NAME = typeof document.body.style.transform == 'undefined' ? 'webkitTransform' : 'transform';
+        // Cachowanie referencji do elementów DOM
+        const clockEl = document.querySelector('.clock');
+        const secondHand = clockEl.querySelector('.second-hand-inner');
+        const minuteHand = clockEl.querySelector('.minute-hand-inner');
+        const hourHand = clockEl.querySelector('.hour-hand-inner');
+        const digitalClock = document.getElementById('digital-clock');
+        const analogClock = document.getElementById('analog-clock-container');
+        const container = document.getElementById('clocks-container');
 
-        function updateAnalogClock() {
-            var clockEl = document.querySelector('.clock');
-            var now = new Date();
-            var time = now.getTime();
-            var milliSeconds = now.getMilliseconds() / 1000;
-            var seconds = now.getSeconds();
-            var easeOutQuad = function(t) { return t * (2 - t) };
-            var movementDuration = 0.15;
-            var animationProgress = Math.min(milliSeconds / movementDuration, 1);
-            var smoothMovement = easeOutQuad(animationProgress);
-            var baseRotation = (360 / 60) * seconds;
-            var animationRotation = smoothMovement * 6;
-            var rotation = baseRotation + animationRotation;
+        const TRANSFORM_NAME = typeof document.body.style.transform == 'undefined' ? 'webkitTransform' : 'transform';
 
-            // Odejmujemy 6 stopni, aby wskazówka sekundnika nie wyprzedzała czasu
-            rotation = (rotation - 6 + 360) % 360;
+        // Funkcja do płynnej animacji
+        function easeOutQuad(t) { return t * (2 - t) }
 
-            clockEl.querySelector('.second-hand-inner').style[TRANSFORM_NAME] = 'rotate(' + rotation + 'deg)';
+        let lastUpdateTime = 0;
 
-            var minutes = now.getMinutes() + seconds / 60;
-            rotation = (360 / 60) * minutes;
-            clockEl.querySelector('.minute-hand-inner').style[TRANSFORM_NAME] = 'rotate(' + rotation + 'deg)';
+        function updateAnalogClock(now) {
+            const seconds = now.getSeconds();
+            const milliSeconds = now.getMilliseconds() / 1000;
+            
+            // Aktualizacja sekundnika
+            const movementDuration = 0.15;
+            const animationProgress = Math.min(milliSeconds / movementDuration, 1);
+            const smoothMovement = easeOutQuad(animationProgress);
+            let rotation = ((360 / 60) * seconds + smoothMovement * 6 - 6 + 360) % 360;
+            secondHand.style[TRANSFORM_NAME] = `rotate(${rotation}deg)`;
 
-            var hours = now.getHours() % 12 + minutes / 60;
-            rotation = (360 / 12) * hours;
-            clockEl.querySelector('.hour-hand-inner').style[TRANSFORM_NAME] = 'rotate(' + rotation + 'deg)';
+            // Aktualizacja minutnika i godzinnika co sekundę
+            if (seconds !== Math.floor(lastUpdateTime / 1000)) {
+                const minutes = now.getMinutes() + seconds / 60;
+                rotation = (360 / 60) * minutes;
+                minuteHand.style[TRANSFORM_NAME] = `rotate(${rotation}deg)`;
+
+                const hours = now.getHours() % 12 + minutes / 60;
+                rotation = (360 / 12) * hours;
+                hourHand.style[TRANSFORM_NAME] = `rotate(${rotation}deg)`;
+            }
+
+            lastUpdateTime = now.getTime();
         }
 
-        function updateDigitalClock() {
-            const now = new Date();
+        function updateDigitalClock(now) {
             const hours = String(now.getHours()).padStart(2, '0');
             const minutes = String(now.getMinutes()).padStart(2, '0');
             const seconds = String(now.getSeconds()).padStart(2, '0');
             
-            document.getElementById('digital-clock').textContent = `${hours}:${minutes}:${seconds}`;
+            digitalClock.textContent = `${hours}:${minutes}:${seconds}`;
         }
 
         function updateClocks() {
-            updateAnalogClock();
-            updateDigitalClock();
+            const now = new Date();
+            updateAnalogClock(now);
+            updateDigitalClock(now);
             requestAnimationFrame(updateClocks);
         }
 
         function updateLayout() {
             const showAnalog = document.getElementById('show-analog').checked;
             const showDigital = document.getElementById('show-digital').checked;
-            const analogClock = document.getElementById('analog-clock-container');
-            const digitalClock = document.getElementById('digital-clock');
-            const container = document.getElementById('clocks-container');
 
             analogClock.style.display = showAnalog ? 'block' : 'none';
             digitalClock.style.display = showDigital ? 'block' : 'none';
@@ -199,8 +207,7 @@
             analogClock.style.width = analogSize;
             analogClock.style.height = analogSize;
 
-            // Ustawianie rozmiaru zegara cyfrowego
-            let digitalFontSize = parseFloat(analogSize) / 5; // Dostosuj dzielnik, aby zmienić wielkość
+            let digitalFontSize = parseFloat(analogSize) / 5;
             digitalClock.style.fontSize = `${digitalFontSize}vmin`;
         }
 
@@ -209,7 +216,7 @@
 
         window.addEventListener('resize', updateLayout);
 
-         // Inicjalizacja zegarów po załadowaniu strony
+        // Inicjalizacja zegarów po załadowaniu strony
         window.onload = function() {
             updateClocks();
             updateLayout();
