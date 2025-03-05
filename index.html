@@ -51,7 +51,6 @@
   }
   .clock .second-hand-inner {
     background-image: url(clock/hand-second.png);
-    transition: transform 0.15s cubic-bezier(0.42, 0, 0.58, 1);
   }
 
   .clock .minute-hand {
@@ -72,29 +71,34 @@
 <script>
   var TRANSFORM_NAME
 
-  function easeOutElastic(t) {
-    var p = .3
-    return Math.pow(2, -10 * t) * Math.sin((t - p / 4) * (2 * Math.PI) / p) + 1
-  }
-
   function updateClock() {
     var clockEl = document.body.querySelector('.clock')
 
     var time = new Date().getTime()
 
-    var milliSeconds = (time % 1000) * 1.0 / 1000
+    // Obliczenie milisekund w zakresie 0-1
+    var milliSeconds = (time % 1000) / 1000
 
-    if (milliSeconds > .5) {
-      milliSeconds = .5 + easeOutElastic((milliSeconds - .5) / .5) * .33
-    } else {
-      milliSeconds = -.17
-    }
+    // Obliczenie rotacji sekundnika z precyzyjnym czasem animacji
+    var seconds = Math.floor((time / 1000) % 60)
 
-    var seconds = Math.floor((time / 1000) % 60);
-    var milliSeconds = time % 100;
-    var rotation = ((360 / 60) * seconds) % 360;
-    var secondHand = clockEl.querySelector('.second-hand-inner');
-    secondHand.style[TRANSFORM_NAME] = 'rotate(' + rotation + 'deg)';
+    // Funkcja easeOutQuad dla płynnego ruchu
+    var easeOutQuad = function(t) { return t * (2 - t) }
+
+    // Precyzyjny czas trwania animacji: 0.15 sekundy
+    var movementDuration = 0.15
+
+    // Obliczenie postępu animacji
+    var animationProgress = Math.min(milliSeconds / movementDuration, 1)
+    var smoothMovement = easeOutQuad(animationProgress)
+
+    // Obliczenie rotacji
+    var baseRotation = (360 / 60) * seconds
+    var animationRotation = smoothMovement * 6
+
+    var rotation = baseRotation + animationRotation
+
+    clockEl.querySelector('.second-hand-inner').style[TRANSFORM_NAME] = 'rotate(' + rotation + 'deg)'
 
     var minutes = ((time / 1000 / 60) % 60)
     var rotation = (360 / 60) * minutes
