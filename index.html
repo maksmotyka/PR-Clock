@@ -1,131 +1,219 @@
 <!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zegar Analogowy i Cyfrowy</title>
+    <style>
+        @font-face {
+            font-family: 'DigiClock';
+            src: url('fonts/DigiClock.woff') format('woff'),
+                 url('fonts/DigiClock.woff2') format('woff2'),
+                 url('fonts/DigiClock.svg#DigiClock') format('svg'),
+                 url('fonts/DigiClock.eot'),
+                 url('fonts/DigiClock.eot?#iefix') format('embedded-opentype'),
+                 url('fonts/DigiClock.ttf') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+            font-display: swap;
+        }
 
-<title>Polskie Radio - Zegar</title>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-image: url(clock/background.jpg);
+            background-size: cover;
+            background-attachment: fixed;
+            overflow: hidden;
+        }
 
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+        #clocks-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            width: 100vw;
+            padding-top: 3vh;
+            padding-bottom: 5vh;
+            transform: scale(0.95);
+        }
 
-<style>
-  body {
-    background-image: url(clock/background.jpg);
-    background-size: cover;
-    background-attachment: fixed;
-    overflow: hidden;
-    padding: 0;
-    margin: 0;
-  }
-  .clock {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    background-image: url(clock/face.png);
-    background-size: contain;
-    background-position: 50% 50%;
-    background-repeat: no-repeat;
-  }
+        #analog-clock-container {
+            position: relative;
+            width: 80vmin;
+            height: 80vmin;
+            max-width: 90vw;
+            max-height: 90vh;
+            transition: all 0.3s ease;
+        }
 
-  .clock > * {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-  }
-  .clock > * > * {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    background-size: contain;
-    background-position: 50% 50%;
-    background-repeat: no-repeat;
-    transform-origin: 50% 50%;
-  }
+        .clock {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url(clock/face.png);
+            background-size: contain;
+            background-position: 50% 50%;
+            background-repeat: no-repeat;
+        }
 
-  .clock .second-hand {
-    z-index: 100;
-  }
-  .clock .second-hand-inner {
-    background-image: url(clock/hand-second.png);
-  }
+        .clock > * {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+        }
+        .clock > * > * {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-size: contain;
+            background-position: 50% 50%;
+            background-repeat: no-repeat;
+            transform-origin: 50% 50%;
+        }
 
-  .clock .minute-hand {
-    z-index: 99;
-  }
-  .clock .minute-hand-inner {
-    background-image: url(clock/hand-minute.png);
-  }
+        .clock .second-hand { z-index: 100; }
+        .clock .second-hand-inner { background-image: url(clock/hand-second.png); }
+        .clock .minute-hand { z-index: 99; }
+        .clock .minute-hand-inner { background-image: url(clock/hand-minute.png); }
+        .clock .hour-hand { z-index: 98; }
+        .clock .hour-hand-inner { background-image: url(clock/hand-hour.png); }
 
-  .clock .hour-hand {
-    z-index: 98;
-  }
-  .clock .hour-hand-inner {
-    background-image: url(clock/hand-hour.png);
-  }
-</style>
+        #digital-clock {
+            font-family: 'DigiClock';
+            color: #f00;
+            text-shadow: 0 0 10px #f00;
+            margin-top: 20px;
+            padding: 20px;
+            border: 10px solid #444;
+            border-radius: 15px;
+            background-color: #000;
+            text-align: center;
+            transition: all 0.3s ease;
+            letter-spacing: -0.40em;
+            position: relative;
+        }
 
-<script>
-  var TRANSFORM_NAME
+        #controls {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 5px;
+            color: white;
+        }
 
-  function updateClock() {
-    var clockEl = document.body.querySelector('.clock')
+        #controls label {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 14px; /* Możesz dostosować rozmiar czcionki według potrzeb */
+        }
 
-    var time = new Date().getTime()
-
-    // Obliczenie milisekund w zakresie 0-1
-    var milliSeconds = (time % 1000) / 1000
-
-    // Obliczenie rotacji sekundnika z precyzyjnym czasem animacji
-    var seconds = Math.floor((time / 1000) % 60)
-
-    // Funkcja easeOutQuad dla płynnego ruchu
-    var easeOutQuad = function(t) { return t * (2 - t) }
-
-    // Precyzyjny czas trwania animacji: 0.15 sekundy
-    var movementDuration = 0.15
-
-    // Obliczenie postępu animacji
-    var animationProgress = Math.min(milliSeconds / movementDuration, 1)
-    var smoothMovement = easeOutQuad(animationProgress)
-
-    // Obliczenie rotacji
-    var baseRotation = (360 / 60) * seconds
-    var animationRotation = smoothMovement * 6
-
-    var rotation = baseRotation + animationRotation
-
-    clockEl.querySelector('.second-hand-inner').style[TRANSFORM_NAME] = 'rotate(' + rotation + 'deg)'
-
-    var minutes = ((time / 1000 / 60) % 60)
-    var rotation = (360 / 60) * minutes
-    clockEl.querySelector('.minute-hand-inner').style[TRANSFORM_NAME] = 'rotate(' + rotation + 'deg)'
-
-    var hours = ((time / 1000 / 60 / 60) % 1) + new Date().getHours()
-    var rotation = (360 / 12) * hours
-    clockEl.querySelector('.hour-hand-inner').style[TRANSFORM_NAME] = 'rotate(' + rotation + 'deg)'
-
-    window.requestAnimationFrame(updateClock)
-  }
-</script>
-
+    </style>
+</head>
 <body>
-  <div class='clock'>
-    <div class='hour-hand'><div class='hour-hand-inner'></div></div>
-    <div class='minute-hand'><div class='minute-hand-inner'></div></div>
-    <div class='second-hand'><div class='second-hand-inner'></div></div>
-  </div>
+    <div id="clocks-container">
+        <div id="analog-clock-container">
+            <div class='clock' id="analog-clock">
+                <div class='hour-hand'><div class='hour-hand-inner'></div></div>
+                <div class='minute-hand'><div class='minute-hand-inner'></div></div>
+                <div class='second-hand'><div class='second-hand-inner'></div></div>
+            </div>
+        </div>
+        <div id="digital-clock"></div>
+    </div>
 
-  <script>
-    if (typeof document.body.style.transform == 'undefined') {
-      TRANSFORM_NAME = 'webkitTransform'
-    } else {
-      TRANSFORM_NAME = 'transform'
-    }
+    <div id="controls">
+        <label><input type="checkbox" id="show-analog" checked> Analogowy</label><br>
+        <label><input type="checkbox" id="show-digital" checked> Cyfrowy</label>
+    </div>
 
-    updateClock()
-  </script>
+    <script>
+        var TRANSFORM_NAME = typeof document.body.style.transform == 'undefined' ? 'webkitTransform' : 'transform';
+
+        function updateAnalogClock() {
+            var clockEl = document.querySelector('.clock');
+            var now = new Date();
+            var time = now.getTime();
+            var milliSeconds = now.getMilliseconds() / 1000;
+            var seconds = now.getSeconds();
+            var easeOutQuad = function(t) { return t * (2 - t) };
+            var movementDuration = 0.15;
+            var animationProgress = Math.min(milliSeconds / movementDuration, 1);
+            var smoothMovement = easeOutQuad(animationProgress);
+            var baseRotation = (360 / 60) * seconds;
+            var animationRotation = smoothMovement * 6;
+            var rotation = baseRotation + animationRotation;
+
+            // Odejmujemy 6 stopni, aby wskazówka sekundnika nie wyprzedzała czasu
+            rotation = (rotation - 6 + 360) % 360;
+
+            clockEl.querySelector('.second-hand-inner').style[TRANSFORM_NAME] = 'rotate(' + rotation + 'deg)';
+
+            var minutes = now.getMinutes() + seconds / 60;
+            rotation = (360 / 60) * minutes;
+            clockEl.querySelector('.minute-hand-inner').style[TRANSFORM_NAME] = 'rotate(' + rotation + 'deg)';
+
+            var hours = now.getHours() % 12 + minutes / 60;
+            rotation = (360 / 12) * hours;
+            clockEl.querySelector('.hour-hand-inner').style[TRANSFORM_NAME] = 'rotate(' + rotation + 'deg)';
+        }
+
+        function updateDigitalClock() {
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            
+            document.getElementById('digital-clock').textContent = `${hours}:${minutes}:${seconds}`;
+        }
+
+        function updateClocks() {
+            updateAnalogClock();
+            updateDigitalClock();
+            requestAnimationFrame(updateClocks);
+        }
+
+        function updateLayout() {
+            const showAnalog = document.getElementById('show-analog').checked;
+            const showDigital = document.getElementById('show-digital').checked;
+            const analogClock = document.getElementById('analog-clock-container');
+            const digitalClock = document.getElementById('digital-clock');
+            const container = document.getElementById('clocks-container');
+
+            analogClock.style.display = showAnalog ? 'block' : 'none';
+            digitalClock.style.display = showDigital ? 'block' : 'none';
+
+            let analogSize = showAnalog && !showDigital ? '90vmin' : '80vmin';
+            analogClock.style.width = analogSize;
+            analogClock.style.height = analogSize;
+
+            // Ustawianie rozmiaru zegara cyfrowego
+            let digitalFontSize = parseFloat(analogSize) / 5; // Dostosuj dzielnik, aby zmienić wielkość
+            digitalClock.style.fontSize = `${digitalFontSize}vmin`;
+        }
+
+        document.getElementById('show-analog').addEventListener('change', updateLayout);
+        document.getElementById('show-digital').addEventListener('change', updateLayout);
+
+        window.addEventListener('resize', updateLayout);
+
+         // Inicjalizacja zegarów po załadowaniu strony
+        window.onload = function() {
+            updateClocks();
+            updateLayout();
+        };
+    </script>
 </body>
+</html>
