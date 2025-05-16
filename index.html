@@ -138,7 +138,8 @@
 
     <div id="controls">
         <label><input type="checkbox" id="show-analog" checked> Analogowy</label><br>
-        <label><input type="checkbox" id="show-digital" checked> Cyfrowy</label>
+        <label><input type="checkbox" id="show-digital" checked> Cyfrowy</label><br>
+        <label><input type="checkbox" id="enable-pips"> GUM</label>
     </div>
 
     <script>
@@ -152,6 +153,12 @@
         const container = document.getElementById('clocks-container');
 
         const TRANSFORM_NAME = typeof document.body.style.transform == 'undefined' ? 'webkitTransform' : 'transform';
+
+        // Inicjalizacja AudioContext do generowania dźwięku
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+
+        let lastPipSecond = -1;
 
         // Funkcja do płynnej animacji
         function easeOutQuad(t) { return t * (2 - t) }
@@ -223,6 +230,59 @@
             updateClocks();
             updateLayout();
         };
+
+        // Odblokowanie AudioContext po pierwszym kliknięciu
+        document.body.addEventListener('click', () => {
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }, { once: true });
+
+        // Użytkownik może włączyć/wyłączyć piki
+        const pipsCheckbox = document.getElementById('enable-pips');
+
+        // Domyślna częstotliwość pipów (możesz zmienić)
+        const PIP_FREQUENCY = 950;
+
+        // Funkcja generująca pojedynczy pip
+        function playPip(duration = 0.1, timeOffset = 0) {
+            if (!pipsCheckbox.checked) return;
+
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(PIP_FREQUENCY, audioCtx.currentTime + timeOffset);
+            gainNode.gain.setValueAtTime(1, audioCtx.currentTime + timeOffset);
+
+            oscillator.connect(gainNode).connect(audioCtx.destination);
+            oscillator.start(audioCtx.currentTime + timeOffset);
+            oscillator.stop(audioCtx.currentTime + timeOffset + duration);
+        }
+
+        // Funkcja sprawdzająca i odtwarzająca pipy od xx:59:55 do xx:00:00
+        function checkForPips() {
+            if (!pipsCheckbox.checked) return;
+
+            const now = new Date();
+            const seconds = now.getSeconds();
+            const minutes = now.getMinutes();
+            const millis = now.getMilliseconds();
+
+            // Jeśli już był pip w tej sekundzie — pomiń
+            if (seconds === lastPipSecond) return;
+
+            if (minutes == 59 && seconds >= 55 && seconds <= 59 && millis < 150) {
+                playPip(0.1);
+                lastPipSecond = seconds;
+            } else if (minutes == 0 && seconds === 0 && millis < 150) {
+                playPip(0.3);
+                lastPipSecond = seconds;
+            }
+        }
+
+        // Sprawdzanie co 100 ms
+        setInterval(checkForPips, 100);
     </script>
 </body>
 </html>
