@@ -163,6 +163,7 @@
         // Sprawdzenie, czy aktywna jest opcja "antena"
         const urlParams = new URLSearchParams(window.location.search);
         const antenaEnabled = urlParams.get('antena') === '1';
+        const testEnabled = urlParams.get('gum-test') === '1';
 
         // Funkcja do płynnej animacji
         function easeOutQuad(t) { return t * (2 - t) }
@@ -294,6 +295,16 @@
             } else if (minutes == 30 && seconds === 0 && millis < 150) {
                 playPip(0.3);
                 lastPipSecond = seconds;
+            }
+            
+            if (testEnabled) {
+                if (minutes == 29 && seconds >= 15 && seconds <= 45 && millis < 150) {
+                playPip(0.1);
+                lastPipSecond = seconds;
+                } else if (minutes == 59 && seconds >= 15 && seconds <= 45 && millis < 150) {
+                playPip(0.1);
+                lastPipSecond = seconds;
+                }
             }
         }
 
