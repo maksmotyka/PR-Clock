@@ -268,7 +268,7 @@
         function checkForPips() {
             if (!pipsCheckbox.checked) return;
 
-            const now = new Date();
+            let now = new Date();
 
             // Jeśli antena, cofnij czas o 1000ms
             if (antenaEnabled) {
