@@ -160,6 +160,10 @@
 
         let lastPipSecond = -1;
 
+        // Sprawdzenie, czy aktywna jest opcja "antena"
+        const urlParams = new URLSearchParams(window.location.search);
+        const antenaEnabled = urlParams.get('antena') === '1';
+
         // Funkcja do płynnej animacji
         function easeOutQuad(t) { return t * (2 - t) }
 
@@ -265,6 +269,12 @@
             if (!pipsCheckbox.checked) return;
 
             const now = new Date();
+
+            // Jeśli antena, cofnij czas o 1000ms
+            if (antenaEnabled) {
+                now = new Date(now.getTime() + 1000);  // dodajemy 1 sekundę, czyli dźwięk nastąpi wcześniej
+            }
+
             const seconds = now.getSeconds();
             const minutes = now.getMinutes();
             const millis = now.getMilliseconds();
@@ -276,6 +286,12 @@
                 playPip(0.1);
                 lastPipSecond = seconds;
             } else if (minutes == 0 && seconds === 0 && millis < 150) {
+                playPip(0.3);
+                lastPipSecond = seconds;
+            } else if (minutes == 29 && seconds >= 55 && seconds <= 59 && millis < 150) {
+                playPip(0.1);
+                lastPipSecond = seconds;
+            } else if (minutes == 30 && seconds === 0 && millis < 150) {
                 playPip(0.3);
                 lastPipSecond = seconds;
             }
