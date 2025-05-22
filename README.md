@@ -11,3 +11,5 @@ Sygnał GUM-u można włączyć poprzez przełącznik w prawym górnym rogu okna
 `antena=1` - przesuwa dźwięk GUM-u o 1 sekundę do przodu / kompensacja opóźnienia FM - pełna godzina anonsowana jest dłuższym pikiem o godz xx:59:59. Jest to mechanizm stosowany w Polskim Radiu - dzięki takiemu przesunięciu słuchacz odbierający rozgłośnię poprzez FM usłyszy pik o pełnej godzinie.
 
 `gum-test=1` - aktywacja pików testowych - Zegar po zaznaczeniu opcji GUM wydaje również 30 pików kontrolnych: od xx:59:15 do xx:59:45 oraz od xx:29:15 do xx:29:45.
+
+## [Uruchom zegar](https://maksmotyka.github.io/PR-Clock/)
