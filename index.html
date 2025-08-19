@@ -271,9 +271,8 @@
 
             let now = new Date();
 
-            // Jeśli antena, cofnij czas o 1000ms
             if (antenaEnabled) {
-                now = new Date(now.getTime() + 1000);  // dodajemy 1 sekundę, czyli dźwięk nastąpi wcześniej
+                now = new Date(now.getTime() + 700);  // dźwięk nastąpi wcześniej
             }
 
             const seconds = now.getSeconds();
