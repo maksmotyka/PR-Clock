@@ -133,6 +133,17 @@
             font-family: Arial, sans-serif;
             font-size: 12px;
             z-index: 1000;
+            opacity: 1;
+            transition: opacity 0.5s ease, background-color 0.3s ease;
+        }
+
+        #sync-status.syncing {
+            background-color: rgba(255, 165, 0, 0.8);
+        }
+
+        #sync-status.hidden {
+            opacity: 0;
+            pointer-events: none;
         }
 
     </style>
@@ -152,18 +163,17 @@
     <div id="controls">
         <label><input type="checkbox" id="show-analog" checked> Analogowy</label><br>
         <label><input type="checkbox" id="show-digital" checked> Cyfrowy</label><br>
-        <label><input type="checkbox" id="enable-pips"> GUM</label>
+        <label><input type="checkbox" id="enable-pips"> GUM</label><br>
+        <label><input type="checkbox" id="show-status"> Status</label>
     </div>
 
     <script>
         // =============================================================================
-        // MODUŁ SYNCHRONIZACJI CZASU Z NTP GUM
+        // MODUŁ SYNCHRONIZACJI CZASU Z NTP GUM + INTELIGENTNA RESYNCHRONIZACJA
         // =============================================================================
 
-        // KONFIGURACJA: Zmień na swój backend lub użyj HTTPS jeśli włączysz Cloudflare Proxy
         const BACKEND_URL = 'https://timeserv.maksplus.xyz/api/time';
         
-        // Fallback na publiczne API (gdyby backend nie działał)
         const FALLBACK_SERVERS = [
             {
                 name: 'WorldTimeAPI',
@@ -172,18 +182,21 @@
             }
         ];
 
-        // Zmienne globalne do zarządzania czasem
         let timeOffset = 0;
         let timeSourceUsed = 'system';
         let ntpServerUsed = 'Nieznany';
+        let lastSyncTime = 0;
+        let syncCount = 0;
+        let resyncTimer = null;
 
-        /**
-         * Pobiera czas z backendu NTP GUM
-         */
+        const RESYNC_INTERVAL = 15 * 60 * 1000;
+        const MIN_RESYNC_INTERVAL = 5 * 60 * 1000;
+        const INACTIVE_THRESHOLD = 5 * 60 * 1000;
+        const TIME_JUMP_THRESHOLD = 2000;
+
         async function fetchTimeFromNTP() {
             try {
                 console.log('Łączę z GUM...');
-                
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 8000);
                 
@@ -193,16 +206,10 @@
                 });
                 
                 clearTimeout(timeoutId);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 
                 const data = await response.json();
-                
-                if (!data.success) {
-                    throw new Error(data.error || 'Uwaga! Serwer zwrócił błąd.');
-                }
+                if (!data.success) throw new Error(data.error || 'Uwaga! Serwer zwrócił błąd.');
                 
                 const serverTime = new Date(data.timestamp);
                 ntpServerUsed = data.source;
@@ -214,20 +221,15 @@
                 console.log(`  Offset NTP: ${(data.offset * 1000).toFixed(2)}ms`);
                 
                 return { time: serverTime, type: data.serverType };
-                
             } catch (error) {
                 console.error('✗ Błąd połączenia ze wzorcem czasu:', error.message);
                 throw error;
             }
         }
 
-        /**
-         * Pobiera czas z serwera fallback
-         */
         async function fetchTimeFromFallback(server) {
             try {
                 console.log(`Łączę z ${server.name}...`);
-                
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 5000);
                 
@@ -237,49 +239,53 @@
                 });
                 
                 clearTimeout(timeoutId);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 
                 const data = await response.json();
                 const serverTime = server.parse(data);
-                
                 console.log(`✓ Połączono z ${server.name}`);
-                
                 return serverTime;
-                
             } catch (error) {
                 console.error(`✗ Błąd ${server.name}:`, error.message);
                 throw error;
             }
         }
 
-        /**
-         * Inicjalizuje synchronizację czasu
-         */
-        async function initializeTimeSync() {
+        async function initializeTimeSync(isResync = false) {
+            const prefix = isResync ? '🔄 RESYNC' : 'INIT';
+            if (isResync) showSyncingIndicator();
+            
             console.log('='.repeat(40));
-            console.log('INICJALIZACJA SYNCHRONIZACJI CZASU Z GUM');
-            console.log('Serwer obsługi wzorca czasu: ' + BACKEND_URL);
+            console.log(`${prefix} - Synchronizacja czasu z GUM`);
+            console.log(`Sync #${++syncCount} | Serwer: ${BACKEND_URL}`);
             console.log('='.repeat(40));
             
-            // Próba 1: Backend NTP GUM (tempus1 lub tempus2)
+            const oldOffset = timeOffset;
+            
             try {
                 const result = await fetchTimeFromNTP();
                 const localTime = new Date();
                 timeOffset = result.time.getTime() - localTime.getTime();
                 timeSourceUsed = result.type === 'primary' ? 'ntp-primary' : 'ntp-backup';
+                lastSyncTime = Date.now();
+                
+                if (isResync) {
+                    const drift = Math.abs(timeOffset - oldOffset);
+                    console.log(`📊 Drift wykryty: ${drift}ms`);
+                    if (drift > 500) console.warn('⚠️ Duży drift! Zegar lokalny mocno dryfuje.');
+                }
                 
                 console.log(`📊 Offset: ${timeOffset}ms`);
                 console.log(`✅ Źródło: GUM (${ntpServerUsed})`);
                 console.log('='.repeat(40));
+                
+                updateSyncStatus();
+                scheduleNextResync();
                 return;
             } catch (error) {
                 console.warn('⚠ GUM niedostępny, łączę z serwerem zapasowym...');
             }
             
-            // Próba 2: Fallback na publiczne API
             for (const server of FALLBACK_SERVERS) {
                 try {
                     const serverTime = await fetchTimeFromFallback(server);
@@ -287,38 +293,79 @@
                     timeOffset = serverTime.getTime() - localTime.getTime();
                     timeSourceUsed = 'fallback';
                     ntpServerUsed = server.name;
+                    lastSyncTime = Date.now();
                     
                     console.log(`📊 Offset czasu: ${timeOffset}ms`);
                     console.log(`⚠ Źródło: Fallback (${server.name})`);
                     console.log('='.repeat(40));
+                    
+                    updateSyncStatus();
+                    scheduleNextResync();
                     return;
                 } catch (error) {
                     console.warn(`Fallback ${server.name} niedostępny`);
                 }
             }
             
-            // Próba 3: Czas systemowy
             console.log('🔴 UWAGA: Używam czasu systemowego');
             console.log('   Brak połączenia z GUM i serwerami zapasowymi');
             console.log('='.repeat(40));
             timeOffset = 0;
             timeSourceUsed = 'system';
             ntpServerUsed = 'Czas systemowy';
+            lastSyncTime = Date.now();
+            
+            updateSyncStatus();
+            scheduleNextResync();
         }
 
-        /**
-         * Zwraca zsynchronizowany czas
-         */
+        function scheduleNextResync() {
+            if (resyncTimer) clearTimeout(resyncTimer);
+            resyncTimer = setTimeout(() => {
+                console.log('⏰ Zaplanowana resynchronizacja');
+                initializeTimeSync(true);
+            }, RESYNC_INTERVAL);
+            
+            const nextSync = new Date(Date.now() + RESYNC_INTERVAL);
+            console.log(`⏰ Następny resync: ${nextSync.toLocaleTimeString()}`);
+        }
+
+        function showSyncingIndicator() {
+            const statusDiv = document.getElementById('sync-status');
+            if (statusDiv) {
+                statusDiv.classList.remove('hidden');
+                statusDiv.classList.add('syncing');
+                statusDiv.innerHTML = '🔄 <strong>Synchronizuję...</strong>';
+            }
+        }
+
+        function hideStatusIfNeeded() {
+            const statusDiv = document.getElementById('sync-status');
+            const showStatusCheckbox = document.getElementById('show-status');
+            
+            if (statusDiv && showStatusCheckbox) {
+                statusDiv.classList.remove('syncing');
+                
+                if (!showStatusCheckbox.checked && 
+                    (timeSourceUsed === 'ntp-primary' || timeSourceUsed === 'ntp-backup')) {
+                    setTimeout(() => {
+                        statusDiv.classList.add('hidden');
+                    }, 2000);
+                }
+            }
+        }
+
         function getSyncedTime() {
             return new Date(Date.now() + timeOffset);
         }
 
-        /**
-         * Wyświetla status synchronizacji
-         */
-        function displaySyncStatus() {
-            const statusDiv = document.createElement('div');
-            statusDiv.id = 'sync-status';
+        function updateSyncStatus() {
+            let statusDiv = document.getElementById('sync-status');
+            if (!statusDiv) {
+                statusDiv = document.createElement('div');
+                statusDiv.id = 'sync-status';
+                document.body.appendChild(statusDiv);
+            }
             
             const statusIcons = {
                 'ntp-primary': '🟢',
@@ -342,14 +389,84 @@
             
             statusDiv.innerHTML = `${icon} <strong>${label}</strong><br>
                                    <small>${ntpServerUsed}${offsetText}</small>`;
-            document.body.appendChild(statusDiv);
+            
+            hideStatusIfNeeded();
         }
 
-        // =============================================================================
-        // KONIEC MODUŁU SYNCHRONIZACJI
-        // =============================================================================
+        function displaySyncStatus() {
+            updateSyncStatus();
+        }
 
-        // Cachowanie referencji do elementów DOM
+        // Safari workaround - resetuj lastTimeCheck przy wznowieniu
+        let visibilityResyncTimer = null;
+        
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                // Safari fix: resetuj timer skoku czasu
+                lastTimeCheck = Date.now();
+                
+                const timeSinceLastSync = Date.now() - lastSyncTime;
+                if (timeSinceLastSync > INACTIVE_THRESHOLD) {
+                    console.log('🔄 Resync: Powrót do karty po nieaktywności');
+                    
+                    // Poczekaj 500ms aby Safari obudził sieć
+                    if (visibilityResyncTimer) clearTimeout(visibilityResyncTimer);
+                    visibilityResyncTimer = setTimeout(() => {
+                        initializeTimeSync(true);
+                    }, 500);
+                }
+            }
+        });
+
+        window.addEventListener('focus', () => {
+            // Safari fix: resetuj timer skoku czasu
+            lastTimeCheck = Date.now();
+            
+            const timeSinceLastSync = Date.now() - lastSyncTime;
+            if (timeSinceLastSync > INACTIVE_THRESHOLD) {
+                console.log('🔄 Resync: Focus po nieaktywności');
+                
+                // Poczekaj 500ms aby Safari obudził sieć
+                setTimeout(() => {
+                    initializeTimeSync(true);
+                }, 500);
+            }
+        });
+
+        let lastTimeCheck = Date.now();
+        let timeJumpDetectionEnabled = true;
+        
+        setInterval(() => {
+            // Wyłącz detekcję skoku czasu jeśli karta niewidoczna
+            if (document.hidden) {
+                timeJumpDetectionEnabled = false;
+                return;
+            }
+            
+            // Włącz ponownie gdy karta widoczna
+            if (!timeJumpDetectionEnabled) {
+                timeJumpDetectionEnabled = true;
+                lastTimeCheck = Date.now();
+                return;
+            }
+            
+            const now = Date.now();
+            const expectedDiff = 1000;
+            const actualDiff = now - lastTimeCheck;
+            
+            if (Math.abs(actualDiff - expectedDiff) > TIME_JUMP_THRESHOLD) {
+                console.warn(`⚠️ Wykryto skok czasu! (${actualDiff}ms zamiast ${expectedDiff}ms)`);
+                
+                // Poczekaj chwilę przed resync
+                setTimeout(() => {
+                    console.log('🔄 Resync: Po skoku czasu');
+                    initializeTimeSync(true);
+                }, 1000); // Zwiększone opóźnienie dla Safari
+            }
+            
+            lastTimeCheck = now;
+        }, 1000);
+
         const clockEl = document.querySelector('.clock');
         const secondHand = clockEl.querySelector('.second-hand-inner');
         const minuteHand = clockEl.querySelector('.minute-hand-inner');
@@ -360,18 +477,15 @@
 
         const TRANSFORM_NAME = typeof document.body.style.transform == 'undefined' ? 'webkitTransform' : 'transform';
 
-        // Inicjalizacja AudioContext do generowania dźwięku
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         const audioCtx = new AudioContext();
 
         let lastPipSecond = -1;
 
-        // Sprawdzenie, czy aktywna jest opcja "antena"
         const urlParams = new URLSearchParams(window.location.search);
         const antenaEnabled = urlParams.get('antena') === '1';
         const testEnabled = urlParams.get('gum-test') === '1';
 
-        // Funkcja do płynnej animacji
         function easeOutQuad(t) { return t * (2 - t) }
 
         let lastUpdateTime = 0;
@@ -380,14 +494,12 @@
             const seconds = now.getSeconds();
             const milliSeconds = now.getMilliseconds() / 1000;
             
-            // Aktualizacja sekundnika
             const movementDuration = 0.15;
             const animationProgress = Math.min(milliSeconds / movementDuration, 1);
             const smoothMovement = easeOutQuad(animationProgress);
             let rotation = ((360 / 60) * seconds + smoothMovement * 6 - 6 + 360) % 360;
             secondHand.style[TRANSFORM_NAME] = `rotate(${rotation}deg)`;
 
-            // Aktualizacja minutnika i godzinnika co sekundę
             if (seconds !== Math.floor(lastUpdateTime / 1000)) {
                 const minutes = now.getMinutes() + seconds / 60;
                 rotation = (360 / 60) * minutes;
@@ -434,30 +546,39 @@
         document.getElementById('show-analog').addEventListener('change', updateLayout);
         document.getElementById('show-digital').addEventListener('change', updateLayout);
 
+        document.getElementById('show-status').addEventListener('change', () => {
+            const statusDiv = document.getElementById('sync-status');
+            const showStatusCheckbox = document.getElementById('show-status');
+            
+            if (statusDiv && showStatusCheckbox) {
+                if (showStatusCheckbox.checked) {
+                    statusDiv.classList.remove('hidden');
+                } else {
+                    if (timeSourceUsed === 'ntp-primary' || timeSourceUsed === 'ntp-backup') {
+                        statusDiv.classList.add('hidden');
+                    }
+                }
+            }
+        });
+
         window.addEventListener('resize', updateLayout);
 
-        // Inicjalizacja zegarów po załadowaniu strony
         window.onload = async function() {
-            await initializeTimeSync();
+            await initializeTimeSync(false);
             displaySyncStatus();
             updateClocks();
             updateLayout();
         };
 
-        // Odblokowanie AudioContext po pierwszym kliknięciu
         document.body.addEventListener('click', () => {
             if (audioCtx.state === 'suspended') {
                 audioCtx.resume();
             }
         }, { once: true });
 
-        // Użytkownik może włączyć/wyłączyć piki
         const pipsCheckbox = document.getElementById('enable-pips');
-
-        // Domyślna częstotliwość pipów (możesz zmienić)
         const PIP_FREQUENCY = 950;
 
-        // Funkcja generująca pojedynczy pip
         function playPip(duration = 0.1, timeOffset = 0) {
             if (!pipsCheckbox.checked) return;
 
@@ -473,21 +594,19 @@
             oscillator.stop(audioCtx.currentTime + timeOffset + duration);
         }
 
-        // Funkcja sprawdzająca i odtwarzająca pipy od xx:59:55 do xx:00:00
         function checkForPips() {
             if (!pipsCheckbox.checked) return;
 
             let now = getSyncedTime();
 
             if (antenaEnabled) {
-                now = new Date(now.getTime() + 700);  // dźwięk nastąpi wcześniej
+                now = new Date(now.getTime() + 700);
             }
 
             const seconds = now.getSeconds();
             const minutes = now.getMinutes();
             const millis = now.getMilliseconds();
 
-            // Jeśli już był pip w tej sekundzie – pomiń
             if (seconds === lastPipSecond) return;
 
             if (minutes == 59 && seconds >= 55 && seconds <= 59 && millis < 150) {
@@ -515,7 +634,6 @@
             }
         }
 
-        // Sprawdzanie co 100 ms
         setInterval(checkForPips, 100);
     </script>
 </body>
